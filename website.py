@@ -22,7 +22,7 @@ def load_model_and_data():
         df = pd.read_csv('loan_data.csv')
         # Basic preprocessing similar to the notebook
         df = df[df['person_age'] < 100]
-        df['previous_loan_defaults_on_file'] = df['previous_loan_defaults_on_file'].map({'Yes': 1, 'No': 0})
+        df['previous_loan_defaults_on_file'] = df['previous_loan_defaults_on_file'].map({'Yes': 0, 'No': 1})
         # One-hot encode to get the correct columns
         df_encoded = pd.get_dummies(df, columns=['person_gender', 'person_education', 'person_home_ownership', 'loan_intent'], drop_first=True)
         # Get the columns X was trained on (all except the target)
@@ -122,7 +122,7 @@ else:
         
         # Preprocess the data to match the model's training format
         # Map 'Yes'/'No' to 1/0
-        input_df['previous_loan_defaults_on_file'] = input_df['previous_loan_defaults_on_file'].map({'Yes': 1, 'No': 0})
+        input_df['previous_loan_defaults_on_file'] = input_df['previous_loan_defaults_on_file'].map({'Yes': 0, 'No': 1})
         
         # One-hot encode the categorical features
         input_df_encoded = pd.get_dummies(input_df)
