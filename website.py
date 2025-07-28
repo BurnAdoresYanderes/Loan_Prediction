@@ -1,3 +1,5 @@
+# website.py
+
 import streamlit as st
 import pandas as pd
 import joblib
@@ -119,18 +121,17 @@ if submitted:
     # --- Display Results ---
     st.header("Prediction Result")
     
-    # This logic is now correct: 1 = Approved, 0 = Rejected
-    if prediction == 1: 
+    if prediction == 1: # 1 means APPROVED
         st.success('**Loan Approved!** 👍')
         st.write(f"Confidence Score: {prediction_proba[1]*100:.2f}%")
         st.balloons()
-    else: 
+    else: # 1 means REJECTED
         st.error('**Loan Rejected!** 👎')
         st.write(f"Confidence Score (for rejection): {prediction_proba[0]*100:.2f}%")
 
     # Expander for detailed probabilities
     with st.expander("View Detailed Probabilities"):
         st.write({
-            'Probability of Rejection (Status 0)': f"{prediction_proba[0]:.4f}",
-            'Probability of Approval (Status 1)': f"{prediction_proba[1]:.4f}"
+            'Probability of Approval (Status 1)': f"{prediction_proba[1]:.4f}",
+            'Probability of Rejection (Status 0)': f"{prediction_proba[0]:.4f}"
         })
