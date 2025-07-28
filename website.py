@@ -1,158 +1,138 @@
+# website.py
+
 import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
 
-# --- PAGE CONFIGURATION ---
-st.set_page_config(
-    page_title="Loan Approval Predictor",
-    page_icon="🏦",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# Set the page configuration for a more professional look
+st.set_page_config(page_title='Loan Prediction App', layout='wide')
 
-# --- MODEL AND DATA LOADING ---
-# Use caching to load the model and data only once
-@st.cache_resource
-def load_model_and_data():
-    """Load the trained model and the original dataset to get column information."""
-    try:
-        model = joblib.load('tuned_random_forest_model.pkl')
-        # Load the original data to get the exact column order for one-hot encoding
-        df = pd.read_csv('loan_data.csv')
-        # Basic preprocessing similar to the notebook
-        df = df[df['person_age'] < 100]
-        df['previous_loan_defaults_on_file'] = df['previous_loan_defaults_on_file'].map({'Yes': 0, 'No': 1})
-        # One-hot encode to get the correct columns
-        df_encoded = pd.get_dummies(df, columns=['person_gender', 'person_education', 'person_home_ownership', 'loan_intent'], drop_first=True)
-        # Get the columns X was trained on (all except the target)
-        training_columns = df_encoded.drop('loan_status', axis=1).columns
-        return model, training_columns
-    except FileNotFoundError:
-        return None, None
-
-model, training_columns = load_model_and_data()
-
-# --- STYLES ---
+# Custom CSS for styling
 st.markdown("""
 <style>
-    .reportview-container {
-        background: #f0f2f6;
-    }
-    .sidebar .sidebar-content {
-        background: #ffffff;
+    .main {
+        background-color: #f5f5f5;
     }
     .stButton>button {
         background-color: #4CAF50;
         color: white;
-        border-radius: 12px;
-        padding: 10px 24px;
-        border: none;
-        font-size: 16px;
     }
-    .stButton>button:hover {
-        background-color: #45a049;
-    }
-    .big-font {
-        font-size:20px !important;
-        font-weight: bold;
+    .st-expander {
+        background-color: #FFFFFF;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# --- Model and Data Loading ---
+@st.cache_data
+def load_model_and_data():
+    """Load the trained model and training columns."""
+    model = joblib.load('tuned_random_forest_model.pkl')
+    # Load the training data to get the column order
+    training_data = pd.read_csv('loan_data.csv')
+    training_data = training_data[training_data['person_age'] < 100]
+    training_data['previous_loan_defaults_on_file'] = training_data['previous_loan_defaults_on_file'].map({'Yes': 1, 'No': 0})
+    training_data = pd.get_dummies(training_data, columns=['person_gender', 'person_education', 'person_home_ownership', 'loan_intent'], drop_first=True)
+    training_columns = training_data.drop('loan_status', axis=1).columns.tolist()
+    return model, training_columns
 
-# --- WEB APPLICATION LAYOUT ---
-if model is None or training_columns is None:
-    st.error("Model file (`tuned_random_forest_model.pkl`) or data file (`loan_data.csv`) not found. Please ensure they are in the same directory.")
-else:
-    # --- HEADER ---
-    st.title('🏦 Loan Approval Prediction App')
-    st.write(
-        "This application uses a Random Forest model to predict the likelihood of a loan being approved or defaulting. "
-        "Please enter the applicant's details in the sidebar to get a prediction."
-    )
+model, training_columns = load_model_and_data()
 
-    # --- SIDEBAR FOR USER INPUT ---
-    st.sidebar.header('Applicant Information')
 
-    # Numerical Inputs
-    age = st.sidebar.number_input('Age', min_value=18, max_value=99, value=25)
-    income = st.sidebar.number_input('Annual Income ($)', min_value=4000, max_value=1000000, value=65000)
-    emp_exp = st.sidebar.number_input('Employment Experience (Years)', min_value=0, max_value=50, value=5)
-    loan_amnt = st.sidebar.number_input('Loan Amount ($)', min_value=500, max_value=50000, value=10000)
-    int_rate = st.sidebar.slider('Loan Interest Rate (%)', min_value=5.0, max_value=25.0, value=11.0, step=0.1)
-    credit_score = st.sidebar.slider('Credit Score', min_value=300, max_value=850, value=650)
+# --- App Header ---
+st.title('FutureFinance Loan Approval Predictor')
+st.markdown("Welcome to the FutureFinance Loan Predictor. Please enter the applicant's details below to get a prediction on loan approval status.")
+
+
+# --- User Input Form ---
+st.header("Applicant Information")
+
+with st.form("loan_prediction_form"):
+    # Split layout into columns for a cleaner form
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        person_age = st.number_input('Age', min_value=18, max_value=100, value=25)
+        person_income = st.number_input('Annual Income', min_value=0, value=50000)
+        person_emp_exp = st.number_input('Years of Employment Experience', min_value=0, max_value=50, value=5)
+        loan_amnt = st.number_input('Loan Amount', min_value=0, value=10000)
+
+    with col2:
+        loan_int_rate = st.number_input('Loan Interest Rate (%)', min_value=0.0, max_value=30.0, value=10.0, format="%.2f")
+        loan_percent_income = st.number_input('Loan as Percent of Income', min_value=0.0, max_value=1.0, value=0.2, format="%.2f")
+        cb_person_cred_hist_length = st.number_input('Credit History Length (years)', min_value=0, max_value=40, value=4)
+        credit_score = st.number_input('Credit Score', min_value=300, max_value=850, value=650)
+
+
+    with col3:
+        person_home_ownership = st.selectbox('Home Ownership', ['RENT', 'OWN', 'MORTGAGE', 'OTHER'])
+        loan_intent = st.selectbox('Loan Intent', ['PERSONAL', 'EDUCATION', 'MEDICAL', 'VENTURE', 'HOMEIMPROVEMENT', 'DEBTCONSOLIDATION'])
+        previous_loan_defaults_on_file = st.selectbox('Previous Loan Defaults on File', ['No', 'Yes'])
+        person_gender = st.selectbox('Gender', ['Male', 'Female'])
+        person_education = st.selectbox('Education Level', ['High School', 'Bachelor', 'Master', 'Associate', 'Professional', 'Doctorate'])
+
+
+    # Submit button for the form
+    submitted = st.form_submit_button('Predict Loan Status')
+
+
+# --- Prediction Logic and Display ---
+if submitted:
+    # --- Data Preprocessing for Prediction ---
+    input_data = {
+        'person_age': person_age,
+        'person_income': person_income,
+        'person_emp_exp': person_emp_exp,
+        'loan_amnt': loan_amnt,
+        'loan_int_rate': loan_int_rate,
+        'loan_percent_income': loan_percent_income,
+        'cb_person_cred_hist_length': cb_person_cred_hist_length,
+        'credit_score': credit_score,
+        'previous_loan_defaults_on_file': 1 if previous_loan_defaults_on_file == 'Yes' else 0,
+        'person_gender_male': 1 if person_gender == 'Male' else 0,
+        'person_education_Bachelor': 1 if person_education == 'Bachelor' else 0,
+        'person_education_Doctorate': 1 if person_education == 'Doctorate' else 0,
+        'person_education_High School': 1 if person_education == 'High School' else 0,
+        'person_education_Master': 1 if person_education == 'Master' else 0,
+        'person_education_Professional': 1 if person_education == 'Professional' else 0,
+        'person_home_ownership_OWN': 1 if person_home_ownership == 'OWN' else 0,
+        'person_home_ownership_RENT': 1 if person_home_ownership == 'RENT' else 0,
+        'person_home_ownership_OTHER': 1 if person_home_ownership == 'OTHER' else 0,
+        'loan_intent_EDUCATION': 1 if loan_intent == 'EDUCATION' else 0,
+        'loan_intent_HOMEIMPROVEMENT': 1 if loan_intent == 'HOMEIMPROVEMENT' else 0,
+        'loan_intent_MEDICAL': 1 if loan_intent == 'MEDICAL' else 0,
+        'loan_intent_PERSONAL': 1 if loan_intent == 'PERSONAL' else 0,
+        'loan_intent_VENTURE': 1 if loan_intent == 'VENTURE' else 0
+    }
+
+    # Create DataFrame from input data
+    input_df = pd.DataFrame([input_data])
+
+    # Ensure all training columns are present and in the correct order
+    final_df = pd.DataFrame(columns=training_columns)
+    final_df = pd.concat([final_df, input_df], ignore_index=True).fillna(0)
+    final_df = final_df[training_columns] # Enforce column order
+
+    # --- Prediction ---
+    prediction = model.predict(final_df)[0]
+    prediction_proba = model.predict_proba(final_df)[0]
+
+    # --- Display Results ---
+    st.header("Prediction Result")
     
-    # Calculated field - handled in prediction logic
-    loan_percent_income = (loan_amnt / income) if income > 0 else 0
-    st.sidebar.markdown(f"**Loan as % of Income:** `{loan_percent_income:.2%}`")
+    # !!! FIX IS HERE: Swap the logic for prediction == 1 and prediction == 0 !!!
+    if prediction == 0: # 0 means APPROVED
+        st.success('**Loan Approved!** 👍')
+        st.write(f"Confidence Score: {prediction_proba[0]*100:.2f}%")
+        st.balloons()
+    else: # 1 means REJECTED
+        st.error('**Loan Rejected!** 👎')
+        st.write(f"Confidence Score (for rejection): {prediction_proba[1]*100:.2f}%")
 
-
-    cb_hist_length = st.sidebar.number_input('Credit History Length (Years)', min_value=1, max_value=40, value=6)
-
-    # Categorical Inputs
-    home_ownership = st.sidebar.selectbox('Home Ownership', ['RENT', 'MORTGAGE', 'OWN', 'OTHER'])
-    loan_intent = st.sidebar.selectbox('Loan Intent', ['PERSONAL', 'EDUCATION', 'MEDICAL', 'VENTURE', 'HOMEIMPROVEMENT', 'DEBTCONSOLIDATION'])
-    education = st.sidebar.selectbox('Education Level', ['High School', 'Bachelor', 'Master', 'Associate', 'Other'])
-    gender = st.sidebar.selectbox('Gender', ['male', 'female'])
-    previous_defaults = st.sidebar.selectbox('Previous Defaults on File?', ['No', 'Yes'])
-
-
-    # --- PREDICTION LOGIC ---
-    if st.button('Predict Loan Status'):
-        # Create a dictionary of the inputs
-        input_data = {
-            'person_age': age,
-            'person_income': income,
-            'person_emp_exp': emp_exp,
-            'loan_amnt': loan_amnt,
-            'loan_int_rate': int_rate,
-            'loan_percent_income': loan_percent_income,
-            'cb_person_cred_hist_length': cb_hist_length,
-            'credit_score': credit_score,
-            'previous_loan_defaults_on_file': previous_defaults,
-            'person_gender': gender,
-            'person_education': education,
-            'person_home_ownership': home_ownership,
-            'loan_intent': loan_intent,
-        }
-
-        # Convert to DataFrame
-        input_df = pd.DataFrame([input_data])
-        
-        # Preprocess the data to match the model's training format
-        # Map 'Yes'/'No' to 1/0
-        input_df['previous_loan_defaults_on_file'] = input_df['previous_loan_defaults_on_file'].map({'Yes': 0, 'No': 1})
-        
-        # One-hot encode the categorical features
-        input_df_encoded = pd.get_dummies(input_df)
-        
-        # Align the columns with the training data columns
-        # This ensures all required columns are present and in the correct order
-        input_df_aligned = input_df_encoded.reindex(columns=training_columns, fill_value=0)
-
-        # Make prediction
-        prediction = model.predict(input_df_aligned)
-        probability = model.predict_proba(input_df_aligned)
-
-        # --- DISPLAY RESULTS ---
-        st.subheader('Prediction Result')
-        if prediction[0] == 1:
-            # Note: In your notebook, loan_status=1 means default/not approved
-            st.error('**Loan Status: Not Approved (High risk of default)**', icon="✖️")
-            prob_value = probability[0][1]
-            st.markdown(f"<p class='big-font'>The model predicts a {prob_value:.2%} probability of this loan defaulting.</p>", unsafe_allow_html=True)
-        else:
-            # loan_status=0 means not defaulted/approved
-            st.success('**Loan Status: Approved (Low risk of default)**', icon="✔️")
-            prob_value = probability[0][0]
-            st.markdown(f"<p class='big-font'>The model predicts a {prob_value:.2%} probability of this loan being successful.</p>", unsafe_allow_html=True)
-
-        # Display probability breakdown
-        st.write("---")
-        st.write("Prediction Probabilities:")
-        prob_df = pd.DataFrame({
-            'Status': ['Approved (Success)', 'Not Approved (Default)'],
-            'Probability': [f"{probability[0][0]:.2%}", f"{probability[0][1]:.2%}"]
+    # Expander for detailed probabilities
+    with st.expander("View Detailed Probabilities"):
+        st.write({
+            'Probability of Approval (Status 0)': f"{prediction_proba[0]:.4f}",
+            'Probability of Rejection (Status 1)': f"{prediction_proba[1]:.4f}"
         })
-        st.table(prob_df)
